@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Tính Khối Lượng STEP & Xếp Thùng 3D (Web App)</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js for 3D Bin Visualizer -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- occt-import-js (OpenCASCADE WebAssembly for client-side STEP parsing) -->
+    <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.1.12/dist/occt-import-js.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-cube logo-icon"></i>
+                <div class="brand-text">
+                    <h2>3D CAD</h2>
+                    <span>STEP Weight & Packaging</span>
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="tab-single">
+                    <i class="fa-solid fa-calculator"></i>
+                    <span>Tính STEP Đơn Lẻ</span>
+                </button>
+                <button class="nav-item" data-tab="tab-batch">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span>Tính Hàng Loạt (Batch)</span>
+                </button>
+                <button class="nav-item" data-tab="tab-packing">
+                    <i class="fa-solid fa-boxes-packing"></i>
+                    <span>Xếp Thùng 3D (Bin Packing)</span>
+                </button>
+                <button class="nav-item" data-tab="tab-materials">
+                    <i class="fa-solid fa-database"></i>
+                    <span>Quản Lý Vật Liệu</span>
+                </button>
+            </nav>
+
+            <div class="server-status">
+                <i class="fa-solid fa-microchip"></i>
+                <div class="status-info">
+                    <span>TV Box Ubuntu 25.04</span>
+                    <small><i class="fa-solid fa-circle status-dot"></i> Super-light Wasm Active</small>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header Bar -->
+            <header class="top-header">
+                <div class="header-title">
+                    <h1 id="page-title">Công Cụ Tính Trọng Lượng File STEP</h1>
+                    <p id="page-subtitle">Đọc file CAD 3D, tính thể tích, trọng lượng nhựa/kim loại & shot weight</p>
+                </div>
+                <div class="header-actions">
+                    <button id="theme-toggle" class="btn btn-icon" title="Đổi giao diện">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- TAB 1: TÍNH ĐƠN LẺ -->
+            <section id="tab-single" class="tab-panel active">
+                <div class="grid-2-layout">
+                    <!-- Column Left: Inputs -->
+                    <div class="card card-input">
+                        <h3><i class="fa-solid fa-cloud-arrow-up"></i> Tải File CAD STEP (.step / .stp)</h3>
+                        
+                        <div id="dropzone-single" class="dropzone">
+                            <i class="fa-solid fa-file-export dropzone-icon"></i>
+                            <p>Kéo thả file <strong>.STEP</strong> hoặc <strong>.STP</strong> vào đây</p>
+                            <span>hoặc click để chọn file từ máy tính</span>
+                            <input type="file" id="file-input-single" accept=".step,.stp" hidden>
+                        </div>
+
+                        <div class="file-info-bar hidden" id="file-info-bar">
+                            <i class="fa-solid fa-file-lines"></i>
+                            <span id="file-name-text">filename.step</span>
+                            <button class="btn-text text-danger" id="btn-remove-file"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+
+                        <div class="form-group highlight-box" style="margin-top: 12px;">
+                            <label for="manual-volume">
+                                <i class="fa-solid fa-pen-to-square text-accent"></i> Hoặc Nhập Thể Tích Thủ Công (cm³) (khi không có bản vẽ 3D STEP):
+                            </label>
+                            <input type="number" id="manual-volume" class="form-control" placeholder="Ví dụ: 125.5 cm³" step="0.001">
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <h3><i class="fa-solid fa-vial"></i> Chọn Vật Liệu & Tỉ Trọng (Density)</h3>
+                        
+                        <div class="form-group">
+                            <label for="material-select">Danh sách Vật Liệu (Nhựa & Kim Loại):</label>
+                            <select id="material-select" class="form-control">
+                                <option value="">-- Đang tải danh sách vật liệu... --</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="custom-density">Hoặc Nhập Tỉ Trọng Tùy Chỉnh (g/cm³):</label>
+                            <input type="number" id="custom-density" class="form-control" placeholder="Ví dụ: 1.36" step="0.001">
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <h3><i class="fa-solid fa-industry"></i> Tính Shot Weight (Cho Khuôn Ép Nhựa)</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="input-cavities">Số cavity (lòng khuôn):</label>
+                                <input type="number" id="input-cavities" class="form-control" value="1" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="input-runner">Trọng lượng cuống phun (g):</label>
+                                <input type="number" id="input-runner" class="form-control" value="0" step="0.1" min="0">
+                            </div>
+                        </div>
+
+                        <button id="btn-calculate-single" class="btn btn-primary btn-block btn-lg">
+                            <i class="fa-solid fa-calculator"></i> TÍNH TOÁN KHỐI LƯỢNG
+                        </button>
+                    </div>
+
+                    <!-- Column Right: Output Results -->
+                    <div class="card card-result">
+                        <h3><i class="fa-solid fa-square-poll-vertical"></i> Kết Quả Tính Toán</h3>
+                        
+                        <div id="loading-spinner-single" class="loading-overlay hidden">
+                            <div class="spinner"></div>
+                            <p>Đang phân tích hình học STEP bằng Wasm...</p>
+                        </div>
+
+                        <div id="result-placeholder" class="result-placeholder">
+                            <i class="fa-solid fa-cube-stacked placeholder-icon"></i>
+                            <p>Tải file STEP và bấm <strong>TÍNH TOÁN KHỐI LƯỢNG</strong> để xem kết quả chi tiết.</p>
+                        </div>
+
+                        <div id="result-details" class="result-details hidden">
+                            <div class="metric-hero">
+                                <span class="metric-label">TRỌNG LƯỢNG SẢN PHẨM</span>
+                                <h2 id="res-weight-primary">0.00 g</h2>
+                                <span id="res-weight-secondary" class="sub-value">(0.0000 kg)</span>
+                            </div>
+
+                            <div class="metrics-grid">
+                                <div class="metric-box">
+                                    <span class="metric-name"><i class="fa-solid fa-cube"></i> Thể tích (Volume)</span>
+                                    <strong id="res-volume">0.000 cm³</strong>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="metric-name"><i class="fa-solid fa-atom"></i> Vật liệu chọn</span>
+                                    <strong id="res-material">ABS (1.05 g/cm³)</strong>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="metric-name"><i class="fa-solid fa-vector-square"></i> Bounding Box (X×Y×Z)</span>
+                                    <strong id="res-bbox">0 × 0 × 0 mm</strong>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="metric-name"><i class="fa-solid fa-draw-polygon"></i> Diện tích bề mặt</span>
+                                    <strong id="res-area">0.00 cm²</strong>
+                                </div>
+                            </div>
+
+                            <!-- Shot weight box -->
+                            <div class="shot-weight-card">
+                                <h4><i class="fa-solid fa-fill-drip"></i> Thông Số Shot Weight Khuôn Ép</h4>
+                                <div class="shot-weight-row">
+                                    <span>Tổng khối lượng bơm (Shot Weight):</span>
+                                    <strong id="res-shot-weight">0.00 g (0.000 kg)</strong>
+                                </div>
+                                <small id="res-shot-details">Công thức: (Weight × 1 cavity) + 0g runner</small>
+                            </div>
+
+                            <div class="action-buttons">
+                                <button id="btn-copy-result" class="btn btn-secondary"><i class="fa-solid fa-copy"></i> Copy Kết Quả</button>
+                                <button id="btn-send-to-packing" class="btn btn-accent"><i class="fa-solid fa-boxes-packing"></i> Chuyển Sang Xếp Thùng 3D</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: TÍNH HÀNG LOẠT (BATCH) -->
+            <section id="tab-batch" class="tab-panel">
+                <div class="card">
+                    <div class="card-header-flex">
+                        <div>
+                            <h3><i class="fa-solid fa-folder-open"></i> Quét & Tính Toán Nhiều File STEP Cùng Lúc</h3>
+                            <p class="text-muted">Chọn hoặc kéo thả nhiều file STEP/STP để tính toán khối lượng BOM hàng loạt</p>
+                        </div>
+                        <div class="batch-top-actions">
+                            <button id="btn-export-batch-excel" class="btn btn-success" disabled>
+                                <i class="fa-solid fa-file-excel"></i> Xuất Báo Cáo Excel (.xlsx)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="dropzone-batch" class="dropzone dropzone-compact">
+                        <i class="fa-solid fa-folder-plus dropzone-icon"></i>
+                        <p>Kéo thả <strong>NHIỀU FILE .STEP / .STP</strong> vào đây</p>
+                        <input type="file" id="file-input-batch" accept=".step,.stp" multiple hidden>
+                    </div>
+
+                    <div class="form-inline-bar">
+                        <div class="form-group inline">
+                            <label>Áp dụng Vật liệu chung:</label>
+                            <select id="batch-material-select" class="form-control">
+                                <option value="">-- Đang tải... --</option>
+                            </select>
+                        </div>
+                        <button id="btn-run-batch" class="btn btn-primary" disabled>
+                            <i class="fa-solid fa-play"></i> Bắt Đầu Tính Hàng Loạt
+                        </button>
+                        <button id="btn-clear-batch" class="btn btn-secondary">
+                            <i class="fa-solid fa-trash-can"></i> Xóa Bảng
+                        </button>
+                    </div>
+
+                    <!-- Batch Results Table -->
+                    <div class="table-responsive">
+                        <table class="data-table" id="batch-table">
+                            <thead>
+                                <tr>
+                                    <th>STT</th>
+                                    <th>Tên File STEP</th>
+                                    <th>Vật Liệu</th>
+                                    <th>Tỉ Trọng (g/cm³)</th>
+                                    <th>Thể Tích (cm³)</th>
+                                    <th>Bounding Box (mm)</th>
+                                    <th>Trọng Lượng (g)</th>
+                                    <th>Trạng Thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batch-tbody">
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted">Chưa có file nào được thêm vào danh sách.</td>
+                                </tr>
+                            </tbody>
+                            <tfoot id="batch-tfoot" class="hidden">
+                                <tr>
+                                    <th colspan="4" class="text-right">TỔNG CỘNG:</th>
+                                    <th id="total-batch-volume" class="text-right">0.00 cm³</th>
+                                    <th></th>
+                                    <th id="total-batch-weight" class="text-right">0.00 g (0.00 kg)</th>
+                                    <th></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: XẾP THÙNG 3D (3D BIN PACKING) -->
+            <section id="tab-packing" class="tab-panel">
+                <div class="grid-2-layout">
+                    <!-- Left: Control inputs -->
+                    <div class="card">
+                        <h3><i class="fa-solid fa-sliders"></i> Thông Số Thùng & Sản Phẩm</h3>
+                        
+                        <div class="form-section-title"><i class="fa-solid fa-box"></i> Kích thước Thùng Carton (Ngoại quan mm)</div>
+                        <div class="form-row-3">
+                            <div class="form-group">
+                                <label>Dài W (mm):</label>
+                                <input type="number" id="bin-w" class="form-control" value="600">
+                            </div>
+                            <div class="form-group">
+                                <label>Rộng H (mm):</label>
+                                <input type="number" id="bin-h" class="form-control" value="400">
+                            </div>
+                            <div class="form-group">
+                                <label>Cao D (mm):</label>
+                                <input type="number" id="bin-d" class="form-control" value="400">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Tải trọng tối đa thùng (kg):</label>
+                            <input type="number" id="bin-max-weight" class="form-control" value="25" step="0.5">
+                        </div>
+
+                        <div class="checkbox-group highlight-box">
+                            <input type="checkbox" id="chk-use-single-data" checked>
+                            <label for="chk-use-single-data">
+                                <i class="fa-solid fa-wand-magic-sparkles text-accent"></i> 
+                                Tự động lấy Kích thước & Trọng lượng từ file STEP vừa tính
+                            </label>
+                            <button type="button" id="btn-sync-single-data" class="btn btn-sm btn-accent" style="margin-left: auto;">
+                                <i class="fa-solid fa-rotate"></i> Cập nhật ngay
+                            </button>
+                        </div>
+
+                        <div class="form-section-title"><i class="fa-solid fa-cube"></i> Kích thước Chi Tiết Sản Phẩm (mm)</div>
+                        <div class="form-row-3">
+                            <div class="form-group">
+                                <label>Dài w (mm):</label>
+                                <input type="number" id="item-w" class="form-control" value="120">
+                            </div>
+                            <div class="form-group">
+                                <label>Rộng h (mm):</label>
+                                <input type="number" id="item-h" class="form-control" value="80">
+                            </div>
+                            <div class="form-group">
+                                <label>Cao d (mm):</label>
+                                <input type="number" id="item-d" class="form-control" value="60">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Trọng lượng 1 chi tiết (g):</label>
+                            <input type="number" id="item-weight" class="form-control" value="150">
+                        </div>
+
+                        <div class="form-section-title"><i class="fa-solid fa-shield-halved"></i> Đệm Lót & Vách Ngăn</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Độ dày vách ngăn (mm):</label>
+                                <input type="number" id="part-padding" class="form-control" value="2" step="0.5">
+                            </div>
+                            <div class="form-group">
+                                <label>Độ dày lót thùng (mm):</label>
+                                <input type="number" id="bin-liner" class="form-control" value="5" step="0.5">
+                            </div>
+                        </div>
+
+                        <div class="form-section-title"><i class="fa-solid fa-rotate"></i> Chế Độ Xoay & Tùy Chọn Góc</div>
+                        <div class="form-group">
+                            <label>Chế độ xoay sản phẩm:</label>
+                            <select id="rotation-mode" class="form-control">
+                                <option value="3d">Xoay tự do 3D (Tối ưu nhất)</option>
+                                <option value="2d">Chỉ xoay phẳng X-Y (Giữ đứng Z)</option>
+                                <option value="none">Không xoay (Giữ nguyên hướng)</option>
+                            </select>
+                        </div>
+
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="chk-remove-corners">
+                            <label for="chk-remove-corners">Loại bỏ 4 góc (để lắp cột bảo vệ chống va đập)</label>
+                        </div>
+
+                        <button id="btn-run-packing" class="btn btn-primary btn-block btn-lg m-t-15">
+                            <i class="fa-solid fa-cubes"></i> TÍNH TOÁN PHƯƠNG ÁN XẾP THÙNG
+                        </button>
+                    </div>
+
+                    <!-- Right: Visualizer 3D Canvas & Results -->
+                    <div class="card">
+                        <div class="card-header-flex">
+                            <h3><i class="fa-solid fa-vr-cardboard"></i> Mô Phỏng Trực Quan 3D (Three.js)</h3>
+                            <button id="btn-export-packing-excel" class="btn btn-success btn-sm" disabled>
+                                <i class="fa-solid fa-file-excel"></i> Xuất Báo Cáo Excel
+                            </button>
+                        </div>
+
+                        <!-- 3 Projection Views Control Bar -->
+                        <div class="view-controls-bar">
+                            <span class="view-label"><i class="fa-solid fa-eye"></i> HÌNH CHIẾU:</span>
+                            <button class="btn btn-sm btn-secondary view-btn active" data-view="3d"><i class="fa-solid fa-cube"></i> 3D Isometric</button>
+                            <button class="btn btn-sm btn-secondary view-btn" data-view="top"><i class="fa-solid fa-table-cells"></i> Chiếu Bằng (Top X-Y)</button>
+                            <button class="btn btn-sm btn-secondary view-btn" data-view="front"><i class="fa-solid fa-border-all"></i> Chiếu Đứng (Front X-Z)</button>
+                            <button class="btn btn-sm btn-secondary view-btn" data-view="side"><i class="fa-solid fa-border-none"></i> Chiếu Cạnh (Side Y-Z)</button>
+                        </div>
+
+                        <div class="option-select-bar hidden" id="option-select-bar">
+                            <label>Chọn Phương Án Xếp:</label>
+                            <select id="packing-option-dropdown" class="form-control">
+                                <option value="0">Phương án 1...</option>
+                            </select>
+                        </div>
+
+                        <!-- 3D Three.js Container -->
+                        <div id="three-canvas-container" class="three-canvas-container">
+                            <div id="loading-spinner-packing" class="packing-loading-overlay hidden">
+                                <div class="packing-spinner"></div>
+                                <p>Đang tính toán phương án xếp thùng 3D...</p>
+                                <small>Hệ thống đang thử các hướng xoay và tối ưu không gian...</small>
+                            </div>
+                            <div class="canvas-overlay-hints">
+                                <span><i class="fa-solid fa-hand-pointer"></i> Dùng chuột trái để xoay 3D | Chuột phải để di chuyển | Cuộn để Zoom</span>
+                            </div>
+                        </div>
+
+                        <!-- 3 Orthographic Projections Preview Panels (Mini 2D Canvas) -->
+                        <div id="projections-panel" class="projections-panel hidden">
+                            <div class="proj-box">
+                                <span class="proj-title"><i class="fa-solid fa-table-cells"></i> Chiếu Bằng (Top View X-Y)</span>
+                                <canvas id="canvas-proj-top" width="200" height="140"></canvas>
+                            </div>
+                            <div class="proj-box">
+                                <span class="proj-title"><i class="fa-solid fa-border-all"></i> Chiếu Đứng (Front View X-Z)</span>
+                                <canvas id="canvas-proj-front" width="200" height="140"></canvas>
+                            </div>
+                            <div class="proj-box">
+                                <span class="proj-title"><i class="fa-solid fa-border-none"></i> Chiếu Cạnh (Side View Y-Z)</span>
+                                <canvas id="canvas-proj-side" width="200" height="140"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Summary Cards below canvas -->
+                        <div id="packing-summary" class="packing-summary hidden">
+                            <div class="summary-badge">
+                                <span>SỐ LƯỢNG TỐI ĐA</span>
+                                <h3 id="pack-qty">0</h3>
+                                <small>chi tiết / thùng</small>
+                            </div>
+                            <div class="summary-badge">
+                                <span>HIỆU SUẤT THỂ TÍCH</span>
+                                <h3 id="pack-efficiency">0 %</h3>
+                                <small id="pack-grid-info">Lưới: -</small>
+                            </div>
+                            <div class="summary-badge">
+                                <span>TỔNG TRỌNG LƯỢNG</span>
+                                <h3 id="pack-total-weight">0.00 kg</h3>
+                                <small id="pack-weight-limit">Hạn mức: 25 kg</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: QUẢN LÝ VẬT LIỆU (MATERIALS) -->
+            <section id="tab-materials" class="tab-panel">
+                <div class="card">
+                    <div class="card-header-flex">
+                        <div>
+                            <h3><i class="fa-solid fa-database"></i> Danh Sách Vật Liệu Trong Cơ Sở Dữ Liệu SQLite</h3>
+                            <p class="text-muted">Xem và quản lý các loại nhựa kỹ thuật & kim loại dùng để tính toán khối lượng</p>
+                        </div>
+                        <button id="btn-open-add-material" class="btn btn-primary">
+                            <i class="fa-solid fa-plus"></i> Thêm Vật Liệu Mới
+                        </button>
+                    </div>
+
+                    <div class="search-bar">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="material-search-input" class="form-control search-input" placeholder="Tìm kiếm vật liệu theo tên, phân loại...">
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table" id="materials-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Tên Vật Liệu</th>
+                                    <th>Tỉ Trọng (Density g/cm³)</th>
+                                    <th>Phân Loại</th>
+                                    <th>Mô Tả Chi Tiết</th>
+                                    <th>Thao Tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="materials-tbody">
+                                <tr>
+                                    <td colspan="6" class="text-center">Đang tải dữ liệu...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal: Thêm/Sửa Vật liệu -->
+    <div id="modal-material" class="modal-backdrop hidden">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3 id="modal-title">Thêm Vật Liệu Mới</h3>
+                <button id="btn-close-modal" class="btn-icon"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tên vật liệu (*):</label>
+                    <input type="text" id="mat-input-name" class="form-control" placeholder="Ví dụ: PA66-GF35">
+                </div>
+                <div class="form-group">
+                    <label>Khối lượng riêng / Density (g/cm³) (*):</label>
+                    <input type="number" id="mat-input-density" class="form-control" placeholder="1.41" step="0.001">
+                </div>
+                <div class="form-group">
+                    <label>Phân loại (Category):</label>
+                    <select id="mat-input-category" class="form-control">
+                        <option value="Plastics">Plastics (Nhựa)</option>
+                        <option value="Metals">Metals (Kim loại)</option>
+                        <option value="Custom">Custom (Tùy chỉnh khác)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Mô tả chi tiết:</label>
+                    <textarea id="mat-input-desc" class="form-control" rows="3" placeholder="Ví dụ: Nhựa PA66 gia cường 35% sợi thủy tinh"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-save-material" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Lưu Vật Liệu</button>
+                <button id="btn-cancel-material" class="btn btn-secondary">Hủy Bỏ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="js/step-parser-wasm.js"></script>
+    <script src="js/bin-visualizer-3d.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

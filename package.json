@@ -1,0 +1,27 @@
+{
+  "name": "step-tool-web-node",
+  "version": "1.0.0",
+  "description": "Tool tính trọng lượng từ file STEP và xếp thùng 3D siêu nhẹ cho TV Box Ubuntu 25.04",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "cad",
+    "step",
+    "bin-packing",
+    "3d",
+    "weight-calculator",
+    "injection-molding"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "sqlite3": "^5.1.7"
+  }
+}
