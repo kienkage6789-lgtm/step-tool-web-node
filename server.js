@@ -2,9 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const { Worker } = require('worker_threads');
 const { getAllMaterials, getMaterialDensity, addMaterial, deleteMaterial, initDb } = require('./src/db');
 const { processCalculation } = require('./src/calculator');
-const { generatePackingOptions } = require('./src/bin-packing');
 const { exportBatchToExcel, exportPackingToExcel } = require('./src/excel-exporter');
 
 const multer = require('multer');
@@ -155,49 +155,39 @@ app.post('/api/bin-packing', (req, res) => {
             return res.status(400).json({ success: false, error: "Thông số kích thước thùng và sản phẩm không hợp lệ." });
         }
 
-        const options = generatePackingOptions(
-            bin_dim.map(Number),
-            item_dim.map(Number),
-            parseFloat(item_weight_g) || 0,
-            parseFloat(max_bin_weight_kg) || 999,
-            rotation_mode || "3d",
-            parseFloat(part_padding) || 0,
-            parseFloat(bin_liner) || 0,
-            Boolean(remove_corners),
-            custom_grid ? custom_grid.map(Number) : null
-        );
+        // Offload heavy calculation to worker thread to prevent event loop lag
+        const workerPath = path.join(__dirname, 'src', 'bin-packing-worker.js');
+        const worker = new Worker(workerPath, {
+            workerData: {
+                bin_dim: bin_dim.map(Number),
+                item_dim: item_dim.map(Number),
+                item_weight_g: parseFloat(item_weight_g) || 0,
+                max_bin_weight_kg: parseFloat(max_bin_weight_kg) || 999,
+                rotation_mode: rotation_mode || "3d",
+                part_padding: parseFloat(part_padding) || 0,
+                bin_liner: parseFloat(bin_liner) || 0,
+                remove_corners: Boolean(remove_corners),
+                custom_grid: custom_grid ? custom_grid.map(Number) : null
+            }
+        });
 
-        const serializedOptions = options.map(opt => ({
-            name: opt.name,
-            qty: opt.qty,
-            orig_qty: opt.orig_qty,
-            grid: opt.grid,
-            is_uniform: opt.is_uniform,
-            orientation: opt.orientation,
-            efficiency_pct: opt.bin_result.getEfficiencyPct(),
-            total_weight_g: opt.bin_result.getUsedWeight(),
-            total_weight_kg: opt.bin_result.getUsedWeight() / 1000.0,
-            bin_w: opt.bin_result.real_w,
-            bin_h: opt.bin_result.real_h,
-            bin_d: opt.bin_result.real_d,
-            eff_bin_w: opt.bin_result.w,
-            eff_bin_h: opt.bin_result.h,
-            eff_bin_d: opt.bin_result.d,
-            bin_liner: opt.bin_result.bin_liner,
-            part_padding: opt.bin_result.part_padding,
-            items: opt.bin_result.items.map(it => ({
-                index: it.index,
-                x: it.x,
-                y: it.y,
-                z: it.z,
-                pw: it.pw,
-                ph: it.ph,
-                pd: it.pd,
-                weight: it.weight
-            }))
-        }));
+        worker.on('message', (msg) => {
+            if (msg.success) {
+                res.json({ success: true, options: msg.options });
+            } else {
+                res.status(500).json({ success: false, error: msg.error });
+            }
+        });
 
-        res.json({ success: true, options: serializedOptions });
+        worker.on('error', (err) => {
+            res.status(500).json({ success: false, error: "Lỗi luồng xử lý nền: " + err.message });
+        });
+
+        worker.on('exit', (code) => {
+            if (code !== 0) {
+                console.error(`Worker stopped with exit code ${code}`);
+            }
+        });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSingleResult: null,
         batchFiles: [],
         batchResults: [],
+        batchSelectedMaterials: [],
         currentPackingOptions: [],
         selectedPackingOption: null
     };
@@ -85,6 +86,12 @@ document.addEventListener('DOMContentLoaded', () => {
         packWeightLimit: document.getElementById('pack-weight-limit'),
 
         // Tab Materials
+        materialsLockScreen: document.getElementById('materials-lock-screen'),
+        materialsContent: document.getElementById('materials-content'),
+        materialPasswordInput: document.getElementById('material-password-input'),
+        btnUnlockMaterials: document.getElementById('btn-unlock-materials'),
+        btnLockMaterials: document.getElementById('btn-lock-materials'),
+        unlockErrorMsg: document.getElementById('unlock-error-msg'),
         materialsTbody: document.getElementById('materials-tbody'),
         materialSearchInput: document.getElementById('material-search-input'),
         btnOpenAddMaterial: document.getElementById('btn-open-add-material'),
@@ -365,6 +372,29 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.btnRunBatch.addEventListener('click', runBatchCalculation);
         elements.btnClearBatch.addEventListener('click', clearBatch);
         elements.btnExportBatchExcel.addEventListener('click', exportBatchExcel);
+
+        // General material change applies to all files
+        elements.batchMaterialSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val) {
+                AppState.batchSelectedMaterials = AppState.batchSelectedMaterials.map(() => val);
+                AppState.batchResults = new Array(AppState.batchFiles.length).fill(null);
+                renderBatchTable();
+            }
+        });
+
+        // Individual material dropdown change updates specific row
+        elements.batchTbody.addEventListener('change', (e) => {
+            if (e.target && e.target.classList.contains('table-select')) {
+                const index = parseInt(e.target.dataset.index);
+                const newVal = e.target.value;
+                if (!isNaN(index) && index >= 0 && index < AppState.batchSelectedMaterials.length) {
+                    AppState.batchSelectedMaterials[index] = newVal;
+                    AppState.batchResults[index] = null;
+                    renderBatchTable();
+                }
+            }
+        });
     }
 
     function addBatchFiles(files) {
@@ -372,6 +402,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (validFiles.length === 0) return;
 
         AppState.batchFiles = [...AppState.batchFiles, ...validFiles];
+        const defaultMaterial = elements.batchMaterialSelect.value || "ABS";
+        for (let i = 0; i < validFiles.length; i++) {
+            AppState.batchSelectedMaterials.push(defaultMaterial);
+        }
+
         renderBatchTable();
         elements.btnRunBatch.disabled = false;
     }
@@ -379,6 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function clearBatch() {
         AppState.batchFiles = [];
         AppState.batchResults = [];
+        AppState.batchSelectedMaterials = [];
         renderBatchTable();
         elements.btnRunBatch.disabled = true;
         elements.btnExportBatchExcel.disabled = true;
@@ -393,18 +429,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         elements.batchTbody.innerHTML = AppState.batchFiles.map((file, i) => {
             const res = AppState.batchResults[i];
-            const materialName = res ? res.material_name : (elements.batchMaterialSelect.value || 'ABS');
-            const densityStr = res ? res.density_g_cm3.toFixed(3) : '-';
-            const volumeStr = res ? res.total_volume_cm3.toFixed(3) : '-';
-            const bboxStr = res ? `${res.bbox_x.toFixed(1)} × ${res.bbox_y.toFixed(1)} × ${res.bbox_z.toFixed(1)}` : '-';
-            const weightStr = res ? `${res.total_weight_g.toFixed(2)} g` : '-';
-            const statusStr = res ? `<span class="text-success"><i class="fa-solid fa-check"></i> Hoàn thành</span>` : `<span class="text-muted">Chờ tính...</span>`;
+            const hasError = res && res.error;
+            
+            // Build dropdown options for each file's material select
+            const isDisabledAttr = elements.btnRunBatch.disabled ? 'disabled' : '';
+            let materialSelectHtml = '';
+            if (AppState.materials && AppState.materials.length > 0) {
+                const selectedMat = AppState.batchSelectedMaterials[i] || 'ABS';
+                const matOptionsHtml = AppState.materials.map(m => {
+                    const isSelected = m.name === selectedMat ? 'selected' : '';
+                    return `<option value="${m.name}" ${isSelected}>${m.name} (${m.density} g/cm³)</option>`;
+                }).join('');
+                materialSelectHtml = `<select class="table-select" data-index="${i}" ${isDisabledAttr}>${matOptionsHtml}</select>`;
+            } else {
+                materialSelectHtml = `<select class="table-select" data-index="${i}" ${isDisabledAttr}><option value="ABS" selected>ABS (1.050 g/cm³)</option></select>`;
+            }
+
+            const densityStr = (res && !hasError) ? res.density_g_cm3.toFixed(3) : '-';
+            const volumeStr = (res && !hasError) ? res.total_volume_cm3.toFixed(3) : '-';
+            const bboxStr = (res && !hasError) ? `${res.bbox_x.toFixed(1)} × ${res.bbox_y.toFixed(1)} × ${res.bbox_z.toFixed(1)}` : '-';
+            const weightStr = (res && !hasError) ? `${res.total_weight_g.toFixed(2)} g` : '-';
+            const statusStr = res 
+                ? (hasError 
+                    ? `<span class="text-danger" title="${res.error}"><i class="fa-solid fa-triangle-exclamation"></i> Lỗi</span>`
+                    : `<span class="text-success"><i class="fa-solid fa-check"></i> Hoàn thành</span>`)
+                : `<span class="text-muted">Chờ tính...</span>`;
 
             return `
                 <tr>
                     <td class="text-center">${i + 1}</td>
                     <td><strong>${file.name}</strong></td>
-                    <td>${materialName}</td>
+                    <td>${materialSelectHtml}</td>
                     <td class="text-right">${densityStr}</td>
                     <td class="text-right">${volumeStr}</td>
                     <td class="text-center">${bboxStr}</td>
@@ -418,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function runBatchCalculation() {
         if (AppState.batchFiles.length === 0) return;
         elements.btnRunBatch.disabled = true;
-        AppState.batchResults = [];
+        AppState.batchResults = new Array(AppState.batchFiles.length).fill(null);
 
         let totalVol = 0;
         let totalWeight = 0;
@@ -427,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const file = AppState.batchFiles[i];
             try {
                 const stepInfo = await window.StepParserWasm.parseStepFile(file);
-                const matName = elements.batchMaterialSelect.value || "ABS";
+                const matName = AppState.batchSelectedMaterials[i] || "ABS";
 
                 const apiRes = await fetch('/api/calculate', {
                     method: 'POST',
@@ -445,13 +500,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     r.bbox_x = stepInfo.bbox_x;
                     r.bbox_y = stepInfo.bbox_y;
                     r.bbox_z = stepInfo.bbox_z;
+                    r.total_volume_cm3 = r.volume_cm3;
+                    r.total_weight_g = r.part_weight_g;
 
-                    AppState.batchResults.push(r);
+                    AppState.batchResults[i] = r;
                     totalVol += r.total_volume_cm3;
-                    totalWeight += r.part_weight_g;
+                    totalWeight += r.total_weight_g;
+                } else {
+                    AppState.batchResults[i] = { file_name: file.name, error: data.error || "Lỗi API" };
                 }
             } catch (err) {
                 console.error(`Lỗi parse file ${file.name}:`, err);
+                AppState.batchResults[i] = { file_name: file.name, error: err.message || "Lỗi xử lý file" };
             }
             renderBatchTable();
         }
@@ -461,6 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.batchTfoot.classList.remove('hidden');
         elements.btnExportBatchExcel.disabled = false;
         elements.btnRunBatch.disabled = false;
+        renderBatchTable();
     }
 
     async function exportBatchExcel() {
@@ -630,6 +691,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!AppState.selectedPackingOption) return;
         try {
             const opt = AppState.selectedPackingOption;
+            
+            // Capture 3D WebGL render canvas
+            const threeCanvas = document.querySelector('#three-canvas-container canvas');
+            const img3d = (threeCanvas && typeof THREE !== 'undefined') ? threeCanvas.toDataURL('image/png') : null;
+
+            // Capture 2D projections canvases
+            const canvasTop = document.getElementById('canvas-proj-top');
+            const imgTop = canvasTop ? canvasTop.toDataURL('image/png') : null;
+
+            const canvasFront = document.getElementById('canvas-proj-front');
+            const imgFront = canvasFront ? canvasFront.toDataURL('image/png') : null;
+
+            const canvasSide = document.getElementById('canvas-proj-side');
+            const imgSide = canvasSide ? canvasSide.toDataURL('image/png') : null;
+
             const packingResult = {
                 option_name: opt.name,
                 bin_w: elements.binW.value,
@@ -643,7 +719,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 total_qty: opt.qty,
                 efficiency_pct: opt.efficiency_pct,
                 total_weight_g: opt.total_weight_g,
-                items: opt.items
+                items: opt.items,
+                image_3d: img3d,
+                image_top: imgTop,
+                image_front: imgFront,
+                image_side: imgSide
             };
 
             const response = await fetch('/api/export-packing-excel', {
@@ -667,6 +747,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 8. Materials Management Events & Table
     function initMaterialsTabEvents() {
+        // Unlock button event
+        elements.btnUnlockMaterials.addEventListener('click', attemptUnlock);
+
+        // Enter key press in password input
+        elements.materialPasswordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                attemptUnlock();
+            }
+        });
+
+        // Lock button event
+        elements.btnLockMaterials.addEventListener('click', () => {
+            elements.materialsContent.classList.add('hidden');
+            elements.materialsLockScreen.classList.remove('hidden');
+            elements.materialPasswordInput.value = "";
+            elements.unlockErrorMsg.classList.add('hidden');
+        });
+
+        function attemptUnlock() {
+            const password = elements.materialPasswordInput.value;
+            if (password === 'admin123') {
+                elements.materialsLockScreen.classList.add('hidden');
+                elements.materialsContent.classList.remove('hidden');
+                elements.unlockErrorMsg.classList.add('hidden');
+            } else {
+                elements.unlockErrorMsg.classList.remove('hidden');
+            }
+        }
+
         elements.materialSearchInput.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase();
             const filtered = AppState.materials.filter(m =>

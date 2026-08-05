@@ -433,15 +433,39 @@
 
             <!-- TAB 4: QUẢN LÝ VẬT LIỆU (MATERIALS) -->
             <section id="tab-materials" class="tab-panel">
-                <div class="card">
+                <!-- Lock Screen -->
+                <div id="materials-lock-screen" class="card text-center" style="max-width: 500px; margin: 40px auto; padding: 40px 20px;">
+                    <div style="margin-bottom: 20px;">
+                        <i class="fa-solid fa-shield-halved" style="font-size: 64px; color: var(--primary-color);"></i>
+                    </div>
+                    <h2>Khu Vực Hạn Chế Truy Cập</h2>
+                    <p class="text-muted" style="margin-top: 10px; margin-bottom: 24px;">Yêu cầu mật khẩu quản trị viên để chỉnh sửa cơ sở dữ liệu vật liệu.</p>
+                    <div class="form-group" style="max-width: 320px; margin: 0 auto 16px;">
+                        <input type="password" id="material-password-input" class="form-control" placeholder="Nhập mật khẩu..." style="text-align: center; letter-spacing: 2px;">
+                    </div>
+                    <button id="btn-unlock-materials" class="btn btn-primary" style="min-width: 140px;">
+                        <i class="fa-solid fa-unlock"></i> Xác Nhận
+                    </button>
+                    <p id="unlock-error-msg" class="text-danger hidden" style="margin-top: 15px; font-weight: 500; font-size: 13px;">
+                        <i class="fa-solid fa-circle-exclamation"></i> Mật khẩu không chính xác!
+                    </p>
+                </div>
+
+                <!-- Unlocked Content -->
+                <div id="materials-content" class="card hidden">
                     <div class="card-header-flex">
                         <div>
                             <h3><i class="fa-solid fa-database"></i> Danh Sách Vật Liệu Trong Cơ Sở Dữ Liệu SQLite</h3>
                             <p class="text-muted">Xem và quản lý các loại nhựa kỹ thuật & kim loại dùng để tính toán khối lượng</p>
                         </div>
-                        <button id="btn-open-add-material" class="btn btn-primary">
-                            <i class="fa-solid fa-plus"></i> Thêm Vật Liệu Mới
-                        </button>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="btn-lock-materials" class="btn btn-secondary">
+                                <i class="fa-solid fa-lock"></i> Khóa Lại
+                            </button>
+                            <button id="btn-open-add-material" class="btn btn-primary">
+                                <i class="fa-solid fa-plus"></i> Thêm Vật Liệu Mới
+                            </button>
+                        </div>
                     </div>
 
                     <div class="search-bar">

@@ -658,8 +658,21 @@ body {
     letter-spacing: 0.5px;
 }
 
-.data-table tbody tr:hover {
-    background-color: var(--bg-card-hover);
+.table-select {
+    padding: 6px 10px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    min-width: 140px;
+    transition: border-color 0.2s ease;
+}
+.table-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
 }
 
 .table-responsive {

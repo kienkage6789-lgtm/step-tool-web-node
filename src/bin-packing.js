@@ -155,8 +155,14 @@ function calculateMaxCapacity(binDim, itemDim, itemWeight, maxBinWeightKg, rotat
     let pivots = [[0, 0, 0]];
     let idx = 1;
     const maxLimit = 3000;
+    const startTime = Date.now();
+    const timeoutMs = 8000; // 8 seconds timeout
 
     while (pivots.length > 0 && idx <= maxLimit) {
+        if (Date.now() - startTime > timeoutMs) {
+            console.warn(`[BinPacking] Greedy timeout sau ${timeoutMs}ms với ${binObj.items.length} items`);
+            break;
+        }
         // Rule 1 & Rule 2 Priority sorting:
         // Priority = (Z ascending, distanceFromCenter ascending)
         pivots.sort((a, b) => {
@@ -425,7 +431,10 @@ function generatePackingOptions(binDim, itemDim, itemWeight, maxBinWeightKg, rot
         }
     }
 
-    if (customGrid === null && !removeCorners) {
+    const MAX_GREEDY_THRESHOLD = 500;
+    const maxGridCapacity = options.length > 0 ? Math.max(...options.map(o => o.qty || 0)) : 0;
+
+    if (customGrid === null && !removeCorners && maxGridCapacity < MAX_GREEDY_THRESHOLD) {
         const greedyBin = calculateMaxCapacity(binDim, itemDim, itemWeight, maxBinWeightKg, rotationMode, partPadding, binLiner);
         const greedyQty = greedyBin.items.length;
 
