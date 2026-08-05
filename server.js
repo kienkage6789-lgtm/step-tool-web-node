@@ -31,7 +31,7 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Read config port
-let PORT = 3000;
+let PORT = process.env.PORT || 3000;
 const configPath = path.join(__dirname, 'config.json');
 if (fs.existsSync(configPath)) {
     try {
