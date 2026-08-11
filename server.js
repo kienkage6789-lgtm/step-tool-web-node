@@ -8,7 +8,7 @@ const { processCalculation } = require('./src/calculator');
 const { exportBatchToExcel, exportPackingToExcel } = require('./src/excel-exporter');
 
 const multer = require('multer');
-const { execFile } = require('child_process');
+const { parseStepFile } = require('./src/parse-step');
 
 const app = express();
 
@@ -44,33 +44,29 @@ if (fs.existsSync(configPath)) {
 
 // REST API Endpoints
 
-// 0. Parse STEP File Exact B-Rep CAD Metrics (Python CadQuery / OpenCASCADE Backend)
-app.post('/api/parse-step', upload.single('step_file'), (req, res) => {
+// 0. Parse STEP File Exact B-Rep CAD Metrics (Node.js WebAssembly Backend)
+app.post('/api/parse-step', upload.single('step_file'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, error: "Chưa có file STEP được tải lên." });
     }
     const tempPath = req.file.path;
-    const pythonScript = path.join(__dirname, 'src', 'parse_step.py');
 
-    execFile('python', [pythonScript, tempPath], (error, stdout, stderr) => {
+    try {
+        const data = await parseStepFile(tempPath);
+        
         // Clean up uploaded file immediately
         fs.unlink(tempPath, () => {});
 
-        if (error) {
-            return res.status(500).json({ success: false, error: "Chưa thể chạy Python CadQuery server: " + (stderr || error.message) });
+        if (data.success) {
+            res.json({ success: true, result: data });
+        } else {
+            res.status(400).json({ success: false, error: data.error });
         }
-
-        try {
-            const data = JSON.parse(stdout.trim());
-            if (data.success) {
-                res.json({ success: true, result: data });
-            } else {
-                res.status(400).json({ success: false, error: data.error });
-            }
-        } catch (e) {
-            res.status(500).json({ success: false, error: "Lỗi đọc dữ liệu JSON từ Python parser." });
-        }
-    });
+    } catch (err) {
+        // Clean up uploaded file in case of error
+        fs.unlink(tempPath, () => {});
+        res.status(500).json({ success: false, error: "Lỗi phân tích file STEP bằng WASM: " + err.message });
+    }
 });
 
 // 1. Get all materials

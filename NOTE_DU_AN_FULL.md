@@ -33,7 +33,7 @@ Môi trường mục tiêu: **TV Box (Ubuntu 25.04 ARM64, RAM 2GB, ROM 16GB)** &
 | [`src/calculator.js`](file:///D:/th%E1%BB%8B%20tr%C6%B0%E1%BB%9Dng/step-tool-web-node/src/calculator.js) | Module tính toán khối lượng ($V \times \text{Density}$) và khối lượng bơm khuôn (Shot Weight). |
 | [`src/bin-packing.js`](file:///D:/th%E1%BB%8B%20tr%C6%B0%E1%BB%9Dng/step-tool-web-node/src/bin-packing.js) | Thuật toán 3D Bin Packing ES6 (xếp từ đáy lên trên, từ tâm ra 4 cạnh, căn giữa đối xứng). |
 | [`src/excel-exporter.js`](file:///D:/th%E1%BB%8B%20tr%C6%B0%E1%BB%9Dng/step-tool-web-node/src/excel-exporter.js) | Xuất báo cáo khối lượng BOM và báo cáo tổng hợp xếp thùng 3D tinh gọn ra file `.xlsx` bằng `exceljs`. |
-| [`src/parse_step.py`](file:///D:/th%E1%BB%8B%20tr%C6%B0%E1%BB%9Dng/step-tool-web-node/src/parse_step.py) | Script Python gọi OpenCASCADE C++ Engine tính toán Exact B-Rep CAD metrics chuẩn 100% SolidWorks/Creo/NX. |
+| [`src/parse-step.js`](file:///D:/tool/step-tool-web-node/src/parse-step.js) | Module Node.js gọi OpenCASCADE WebAssembly Engine tính toán Exact B-Rep CAD metrics chuẩn 100% SolidWorks/Creo/NX. |
 | [`public/index.html`](file:///D:/th%E1%BB%8B%20tr%C6%B0%E1%BB%9Dng/step-tool-web-node/public/index.html) | Giao diện Web SPA chính tích hợp ô nhập thể tích thủ công, 4 Tab chức năng, responsive và các khung hình chiếu. |
 | [`public/css/style.css`](file:///D:/th%E1%BB%8B%20tr%C6%B0%E1%BB%9Dng/step-tool-web-node/public/css/style.css) | Styling hệ thống Dark/Light mode hiện đại, card glassmorphism. |
 | [`public/js/step-parser-wasm.js`](file:///D:/th%E1%BB%8B%20tr%C6%B0%E1%BB%9Dng/step-tool-web-node/public/js/step-parser-wasm.js) | Engine đọc STEP phía Trình duyệt (Server CAD Engine + WebAssembly OpenCASCADE fallback). |
