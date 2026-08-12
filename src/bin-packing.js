@@ -68,12 +68,12 @@ class PackingBin {
             return false;
         }
 
-        // No 3D Overlap check
+        // No 3D Overlap check with padding clearance
         for (const other of this.items) {
             if (
-                x < other.x + other.pw - 1e-4 && x + pw > other.x + 1e-4 &&
-                y < other.y + other.ph - 1e-4 && y + ph > other.y + 1e-4 &&
-                z < other.z + other.pd - 1e-4 && z + pd > other.z + 1e-4
+                x < other.x + other.pw + this.part_padding - 1e-4 && x + pw + this.part_padding > other.x + 1e-4 &&
+                y < other.y + other.ph + this.part_padding - 1e-4 && y + ph + this.part_padding > other.y + 1e-4 &&
+                z < other.z + other.pd + this.part_padding - 1e-4 && z + pd + this.part_padding > other.z + 1e-4
             ) {
                 return false;
             }
@@ -96,8 +96,9 @@ class PackingBin {
         const requiredArea = pw * ph * 0.6; // Ít nhất 60% diện tích đáy được đỡ
 
         for (const other of this.items) {
-            // Check if top of 'other' matches 'z'
-            if (Math.abs((other.z + other.pd) - z) < 1e-3) {
+            // Check if top of 'other' matches 'z' (accounting for vertical part padding)
+            const gap = z - (other.z + other.pd);
+            if (Math.abs(gap) < 1e-3 || Math.abs(gap - this.part_padding) < 1e-3) {
                 const overlapX = Math.max(0, Math.min(x + pw, other.x + other.pw) - Math.max(x, other.x));
                 const overlapY = Math.max(0, Math.min(y + ph, other.y + other.ph) - Math.max(y, other.y));
                 supportedArea += (overlapX * overlapY);
@@ -120,9 +121,10 @@ function calculateMaxCapacity(binDim, itemDim, itemWeight, maxBinWeightKg, rotat
     const centerX = effBinW / 2.0;
     const centerY = effBinH / 2.0;
 
-    const effItemW = itemDim[0] + partPadding;
-    const effItemH = itemDim[1] + partPadding;
-    const effItemD = itemDim[2] + partPadding;
+    // Use actual dimensions instead of padded dimensions
+    const w = itemDim[0];
+    const h = itemDim[1];
+    const d = itemDim[2];
 
     const binObj = new PackingBin(
         effBinW, effBinH, effBinD,
@@ -130,8 +132,6 @@ function calculateMaxCapacity(binDim, itemDim, itemWeight, maxBinWeightKg, rotat
         binDim[0], binDim[1], binDim[2],
         partPadding, binLiner
     );
-
-    const w = effItemW, h = effItemH, d = effItemD;
 
     let orientations = [];
     if (rotationMode === "3d") {
@@ -215,10 +215,10 @@ function calculateMaxCapacity(binDim, itemDim, itemWeight, maxBinWeightKg, rotat
                 // Remove current pivot
                 pivots = pivots.filter(pt => !(pt[0] === px && pt[1] === py && pt[2] === pz));
 
-                // Generate new pivots around placed item
-                pivots.push([best.px + best.ow, best.py, best.pz]);
-                pivots.push([best.px, best.py + best.oh, best.pz]);
-                pivots.push([best.px, best.py, best.pz + best.od]);
+                // Generate new pivots around placed item, adding partPadding for spacing
+                pivots.push([best.px + best.ow + partPadding, best.py, best.pz]);
+                pivots.push([best.px, best.py + best.oh + partPadding, best.pz]);
+                pivots.push([best.px, best.py, best.pz + best.od + partPadding]);
 
                 // Deduplicate and filter out of bounds or inside items
                 const pivotMap = new Map();

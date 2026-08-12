@@ -225,26 +225,26 @@ window.BinVisualizer3D = (function() {
         const binLiner = res.bin_liner || 0;
         const items = res.items || [];
 
-        // 1. Top View (X-Y Plane)
+        // 1. Top View (X-Y Plane) - No inversion needed for horizontal view
         drawProjCanvas('canvas-proj-top', binW, binH, items, (it) => ({
             x: binLiner + it.x, y: binLiner + it.y, w: it.pw, h: it.ph
-        }));
+        }), false);
 
-        // 2. Front View (X-Z Plane)
+        // 2. Front View (X-Z Plane) - Invert Y-axis since vertical is height
         drawProjCanvas('canvas-proj-front', binW, binD, items, (it) => ({
             x: binLiner + it.x, y: binLiner + it.z, w: it.pw, h: it.pd
-        }));
+        }), true);
 
-        // 3. Side View (Y-Z Plane)
+        // 3. Side View (Y-Z Plane) - Invert Y-axis since vertical is height
         drawProjCanvas('canvas-proj-side', binH, binD, items, (it) => ({
             x: binLiner + it.y, y: binLiner + it.z, w: it.ph, h: it.pd
-        }));
+        }), true);
 
         const panel = document.getElementById('projections-panel');
         if (panel) panel.classList.remove('hidden');
     }
 
-    function drawProjCanvas(canvasId, totalW, totalH, items, coordExtractor) {
+    function drawProjCanvas(canvasId, totalW, totalH, items, coordExtractor, invertY = false) {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -275,7 +275,10 @@ window.BinVisualizer3D = (function() {
         items.forEach((item, idx) => {
             const { x, y, w, h } = coordExtractor(item);
             const drawX = offsetX + x * scale;
-            const drawY = offsetY + y * scale;
+            
+            // If invertY is true, inverting canvas y-axis since y represents height from bottom
+            const actualY = invertY ? (totalH - y - h) : y;
+            const drawY = offsetY + actualY * scale;
             const drawW = w * scale;
             const drawH = h * scale;
 
@@ -297,7 +300,11 @@ window.BinVisualizer3D = (function() {
         // Draw Dashed Bounding Envelope & Show 4-side Excess Gaps
         if (items.length > 0 && minItemX !== Infinity) {
             const blockX = offsetX + minItemX * scale;
-            const blockY = offsetY + minItemY * scale;
+            
+            // For the dashed bounding box, we also need to invert blockY if invertY is true
+            const actualBlockY = invertY ? (totalH - maxItemY) : minItemY;
+            const blockY = offsetY + actualBlockY * scale;
+            
             const blockW = (maxItemX - minItemX) * scale;
             const blockH = (maxItemY - minItemY) * scale;
 
@@ -318,8 +325,12 @@ window.BinVisualizer3D = (function() {
             ctx.textAlign = 'center';
 
             ctx.fillText(`L:${gapLeft}mm | R:${gapRight}mm`, cW / 2, cH - 4);
-            if (gapTop > 0 || gapBottom > 0) {
-                ctx.fillText(`T:${gapTop}mm | B:${gapBottom}mm`, cW / 2, 12);
+            
+            const labelTop = invertY ? gapBottom : gapTop;
+            const labelBottom = invertY ? gapTop : gapBottom;
+
+            if (labelTop > 0 || labelBottom > 0) {
+                ctx.fillText(`T:${labelTop}mm | B:${labelBottom}mm`, cW / 2, 12);
             }
         }
     }
